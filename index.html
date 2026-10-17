@@ -1,0 +1,1081 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>팀 무드보드</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #ECEEF1;
+    --surface: #FFFFFF;
+    --ink: #1C2230;
+    --muted: #667085;
+    --line: #D5D9E0;
+    --accent: #2B4BDB;
+    --accent-ink: #FFFFFF;
+    --danger: #C2341F;
+    --online: #1F9D55;
+    --shade: rgba(20, 24, 33, .78);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171C;
+      --surface: #1D2128;
+      --ink: #E7E9EE;
+      --muted: #9097A5;
+      --line: #2D323B;
+      --accent: #7D8EFF;
+      --accent-ink: #0F1220;
+      --danger: #FF7A66;
+      --online: #4ADE80;
+      --shade: rgba(0, 0, 0, .85);
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, select, input, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  svg { display: block; }
+
+  /* ---------- 상단 ---------- */
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: color-mix(in srgb, var(--bg) 90%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .wrap { max-width: 1600px; margin: 0 auto; padding-left: 20px; padding-right: 20px; }
+  .top { display: flex; align-items: center; gap: 10px; padding-top: 14px; padding-bottom: 10px; }
+  h1 { font-size: 26px; font-weight: 800; letter-spacing: -.03em; margin: 0; }
+  .count { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; align-self: flex-end; padding-bottom: 3px; }
+  .spacer { flex: 1; }
+  .btn {
+    border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer;
+    background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: 14px;
+  }
+
+  .mem-wrap { position: relative; }
+  .mem-btn {
+    display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 12px; font-size: 14px;
+  }
+  .mem-btn .on-n { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); flex: none; }
+  .dot.on { background: var(--online); }
+  .members {
+    position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; width: 250px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .14);
+  }
+  .members h2 { margin: 0 0 8px; font-size: 14px; font-weight: 700; }
+  .members ul { list-style: none; margin: 0 0 10px; padding: 0; max-height: 50vh; overflow-y: auto; }
+  .members li { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 14px; }
+  .members li .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .members li .me { color: var(--muted); font-size: 12px; }
+  .members li.off .nm { color: var(--muted); }
+
+  .cats { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none; }
+  .cats::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: none; display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid var(--line); background: var(--surface);
+    border-radius: 999px; padding: 6px 13px; cursor: pointer; font-size: 14px;
+  }
+  .chip .n { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .chip[aria-pressed="true"] .n { color: inherit; opacity: .65; }
+  .chip.add { border-style: dashed; color: var(--muted); background: transparent; }
+  .chip-input {
+    flex: none; width: 150px; border: 1px solid var(--accent); background: var(--surface);
+    border-radius: 999px; padding: 6px 13px; font-size: 14px; outline: none;
+  }
+
+  .hint { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding-bottom: 12px; font-size: 13px; color: var(--muted); }
+  .hint b { color: var(--ink); font-weight: 600; }
+  .link { border: 0; background: none; padding: 0; cursor: pointer; font-size: 13px; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+  .link.danger { color: var(--danger); }
+
+  /* ---------- 보드 ---------- */
+  main { padding-top: 18px; padding-bottom: 100px; }
+  .grid { columns: 240px; column-gap: 14px; }
+  .card {
+    break-inside: avoid; margin: 0 0 14px; position: relative;
+    background: var(--surface); border-radius: 6px; overflow: hidden;
+  }
+  .card img { display: block; width: 100%; height: auto; cursor: zoom-in; }
+  .card.broken img { min-height: 120px; }
+  .card.broken::after {
+    content: "원본 이미지를 불러올 수 없어요"; position: absolute; inset: 0;
+    display: grid; place-items: center; font-size: 13px; color: var(--muted); pointer-events: none;
+  }
+  .tag {
+    position: absolute; top: 8px; left: 8px; max-width: calc(100% - 16px);
+    background: rgba(0, 0, 0, .55); color: #fff; font-size: 12px; padding: 2px 8px; border-radius: 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tag:empty { display: none; }
+  .bar {
+    position: absolute; left: 0; right: 0; bottom: 0; display: flex; gap: 6px; padding: 28px 8px 8px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, .6)); opacity: 0; transition: opacity .15s;
+  }
+  .card:hover .bar, .card:focus-within .bar { opacity: 1; }
+  @media (hover: none) { .bar { opacity: 1; } }
+  .bar select {
+    flex: 1; min-width: 0; border: 0; border-radius: 6px; padding: 5px 8px; font-size: 13px;
+    background: rgba(255, 255, 255, .92); color: #1C2230;
+  }
+  .bar .del {
+    border: 0; border-radius: 6px; padding: 5px 10px; font-size: 13px; cursor: pointer;
+    background: rgba(255, 255, 255, .92); color: #C2341F;
+  }
+
+  .empty { max-width: 34em; margin: 12vh auto 0; text-align: center; color: var(--muted); }
+  .empty strong { display: block; color: var(--ink); font-size: 18px; margin-bottom: 6px; }
+  .empty code { background: var(--surface); padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+
+  .drop {
+    position: fixed; inset: 0; z-index: 50; display: none; place-items: center; pointer-events: none;
+    background: color-mix(in srgb, var(--accent) 16%, var(--bg));
+    border: 3px dashed var(--accent);
+  }
+  .drop.on { display: grid; }
+  .drop p { margin: 0; font-size: clamp(32px, 6vw, 72px); font-weight: 800; letter-spacing: -.04em; color: var(--accent); text-align: center; }
+  .drop small { display: block; font-size: 16px; font-weight: 500; letter-spacing: 0; color: var(--ink); margin-top: 8px; }
+
+  .lightbox { position: fixed; inset: 0; z-index: 60; display: none; place-items: center; padding: 24px; background: var(--shade); cursor: zoom-out; }
+  .lightbox.on { display: grid; }
+  .lightbox img { max-width: 100%; max-height: calc(100vh - 48px); object-fit: contain; border-radius: 4px; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 70;
+    background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 14px;
+    max-width: calc(100vw - 32px); display: none;
+  }
+  .toast.on { display: block; }
+  .toast.err { background: var(--danger); color: #fff; }
+
+  /* ---------- 입장 화면 ---------- */
+  .gate { position: fixed; inset: 0; z-index: 80; display: none; place-items: center; padding: 24px; background: var(--bg); }
+  .gate.on { display: grid; }
+  .gate form { width: min(100%, 320px); display: grid; gap: 10px; }
+  .gate h2 { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -.03em; }
+  .gate p { margin: 0 0 6px; color: var(--muted); font-size: 14px; }
+  .gate input { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 10px 12px; font-size: 15px; }
+  .gate input:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+  .gate .btn { padding: 10px 14px; font-size: 15px; }
+  .gate .btn:disabled { opacity: .6; cursor: wait; }
+  .gate .err { margin: 0; min-height: 1.4em; color: var(--danger); font-size: 13px; }
+
+  /* ---------- 채팅 ---------- */
+  .fab {
+    position: fixed; right: 20px; bottom: 20px; z-index: 40; width: 54px; height: 54px; border-radius: 50%;
+    border: 0; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .2);
+  }
+  .fab svg { width: 24px; height: 24px; }
+  .badge {
+    position: absolute; top: -3px; right: -3px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
+    background: var(--danger); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center;
+  }
+  .chat {
+    position: fixed; right: 20px; bottom: 86px; z-index: 45; width: 370px; height: min(600px, calc(100vh - 120px));
+    display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: 0 14px 44px rgba(0, 0, 0, .2); overflow: hidden;
+  }
+  .chat.dragover { outline: 3px dashed var(--accent); outline-offset: -3px; }
+  .chat-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 10px 16px; border-bottom: 1px solid var(--line); }
+  .chat-head h2 { margin: 0; font-size: 16px; font-weight: 700; }
+  .icon-btn { border: 0; background: none; cursor: pointer; padding: 7px; border-radius: 8px; color: var(--muted); display: grid; place-items: center; }
+  .icon-btn:hover { background: var(--bg); color: var(--ink); }
+  .icon-btn svg { width: 20px; height: 20px; }
+  .chat-list { flex: 1; overflow-y: auto; padding: 8px 14px 14px; display: flex; flex-direction: column; }
+  .chat-empty { margin: auto; color: var(--muted); font-size: 14px; text-align: center; }
+  .day { align-self: center; font-size: 12px; color: var(--muted); margin: 14px 0 2px; }
+  .msg { display: flex; flex-direction: column; align-items: flex-start; max-width: 86%; margin-top: 12px; }
+  .msg.grouped { margin-top: 3px; }
+  .msg.mine { align-self: flex-end; align-items: flex-end; }
+  .meta { display: flex; gap: 6px; align-items: baseline; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+  .meta b { color: var(--ink); font-weight: 600; font-size: 13px; }
+  .bubble { background: var(--bg); padding: 7px 11px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.45; }
+  .msg.mine .bubble { background: var(--accent); color: var(--accent-ink); }
+  .bubble a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+  .att-img { display: block; margin-top: 4px; }
+  .att-img img { display: block; max-width: 220px; max-height: 240px; border-radius: 10px; cursor: zoom-in; background: var(--bg); }
+  .att-file {
+    display: flex; align-items: center; gap: 10px; margin-top: 4px; padding: 9px 12px; max-width: 260px;
+    border: 1px solid var(--line); border-radius: 10px; color: var(--ink); text-decoration: none; background: var(--surface);
+  }
+  .att-file svg { width: 22px; height: 22px; flex: none; color: var(--accent); }
+  .att-file span { display: block; min-width: 0; }
+  .att-file .fn { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .att-file .fs { font-size: 12px; color: var(--muted); }
+  .pending { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px 0; border-top: 1px solid var(--line); }
+  .pchip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; background: var(--bg); border-radius: 6px; padding: 3px 3px 3px 9px; font-size: 12px; }
+  .pchip .pn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+  .pchip button { border: 0; background: none; cursor: pointer; color: var(--muted); padding: 2px 6px; font-size: 15px; line-height: 1; }
+  .composer { display: flex; align-items: flex-end; gap: 4px; padding: 10px 10px 12px; }
+  .pending[hidden] + .composer { border-top: 1px solid var(--line); }
+  .composer textarea {
+    flex: 1; resize: none; border: 1px solid var(--line); background: var(--bg); border-radius: 10px;
+    padding: 8px 11px; font-size: 14px; line-height: 1.45; height: 38px; max-height: 120px;
+  }
+  .composer textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+  .send { border: 0; background: var(--accent); color: var(--accent-ink); border-radius: 10px; height: 38px; padding: 0 14px; font-weight: 600; font-size: 14px; cursor: pointer; flex: none; }
+  .send:disabled { opacity: .5; cursor: wait; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  @media (max-width: 600px) {
+    .grid { columns: 2; column-gap: 8px; } .card { margin-bottom: 8px; } h1 { font-size: 22px; }
+    .count { display: none; }
+    .chat { inset: 0; width: auto; height: auto; border: 0; border-radius: 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap top">
+    <h1>팀 무드보드</h1>
+    <span class="count" id="count"></span>
+    <span class="spacer"></span>
+    <div class="mem-wrap">
+      <button class="mem-btn" id="memBtn" aria-expanded="false" aria-controls="memPanel" hidden>
+        멤버 <span id="memCount">0</span>명
+        <span class="on-n" title="지금 접속 중"><span class="dot on"></span><span id="onCount">0</span></span>
+      </button>
+      <div class="members" id="memPanel" hidden>
+        <h2>입장한 멤버</h2>
+        <ul id="memList"></ul>
+        <button class="link" id="renameMe">내 닉네임 바꾸기</button>
+      </div>
+    </div>
+    <button class="btn" id="pick">사진 추가</button>
+    <input type="file" id="file" accept="image/*" multiple hidden>
+  </div>
+  <nav class="wrap cats" id="cats" aria-label="카테고리"></nav>
+  <div class="wrap hint" id="hint"></div>
+</header>
+
+<main class="wrap">
+  <div class="grid" id="grid"></div>
+  <div id="empty"></div>
+</main>
+
+<button class="fab" id="chatFab" aria-label="채팅 열기" aria-expanded="false" aria-controls="chat" hidden>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>
+  <span class="badge" id="chatBadge" hidden></span>
+</button>
+
+<section class="chat" id="chat" aria-label="채팅" hidden>
+  <div class="chat-head">
+    <h2>채팅</h2>
+    <button class="icon-btn" id="chatClose" aria-label="채팅 닫기">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="chat-list" id="chatList"></div>
+  <div class="pending" id="chatPending" hidden></div>
+  <div class="composer">
+    <button class="icon-btn" id="chatAttach" aria-label="파일 첨부">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.4 11.1l-8.5 8.5a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"/></svg>
+    </button>
+    <input type="file" id="chatFile" multiple hidden>
+    <textarea id="chatInput" rows="1" placeholder="메시지 입력" aria-label="메시지"></textarea>
+    <button class="send" id="chatSend">보내기</button>
+  </div>
+</section>
+
+<div class="drop" id="drop"><p>여기에 놓기<small id="dropTo"></small></p></div>
+<div class="lightbox" id="lightbox"><img alt=""></div>
+<div class="toast" id="toast" role="status"></div>
+
+<div class="gate" id="gate">
+  <form id="pwForm" hidden>
+    <h2>팀 무드보드</h2>
+    <p>팀 비밀번호를 입력하세요. 한 번 입력하면 이 브라우저에서는 다시 묻지 않아요.</p>
+    <input type="password" id="gatePw" autocomplete="current-password" placeholder="비밀번호" aria-label="비밀번호" required>
+    <button class="btn" type="submit" id="pwBtn">입장하기</button>
+    <p class="err" id="pwErr" role="alert"></p>
+  </form>
+  <form id="nickForm" hidden>
+    <h2>닉네임을 정해 주세요</h2>
+    <p>멤버 목록과 채팅에서 이 이름으로 보여요. 나중에 바꿀 수 있어요.</p>
+    <input type="text" id="gateNick" maxlength="20" placeholder="닉네임" aria-label="닉네임" autocomplete="nickname" required>
+    <button class="btn" type="submit" id="nickBtn">시작하기</button>
+    <p class="err" id="nickErr" role="alert"></p>
+  </form>
+</div>
+
+<script>
+/* ===== 설정 ===== */
+const SUPABASE_URL = "https://hifpjbwmjzxjkdhyxcea.supabase.co";
+const SUPABASE_KEY = "sb_publishable_I3ME358u1nWOmrzSslUsSA_Yp3mcdf6";
+const TEAM_EMAIL = "team@moodboard.app";   // Supabase에 만든 팀 계정 이메일 (비밀번호는 코드에 없음)
+/* ================ */
+
+const BUCKET = "moodboard";
+const MAX_SIDE = 2000;                     // 보드 이미지 긴 변 최대 픽셀 (용량 절약)
+const MAX_FILE = 50 * 1024 * 1024;         // 채팅 첨부 최대 50MB
+const PASTE_KEY = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘V" : "Ctrl+V";
+
+const $ = (s) => document.querySelector(s);
+const state = { images: [], cats: [], view: "all", members: [], online: new Set(), messages: [] };
+const cardEls = new Map();
+let sb = null, me = "", started = false, presence = null, chatOpen = false;
+let pending = [], sending = false;
+
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+const NICK_KEY = "moodboard:nickname";
+const READ_KEY = "moodboard:lastRead";
+
+/* ---------- 시작 ---------- */
+function configured() {
+  return !SUPABASE_URL.includes("YOUR-") && !SUPABASE_KEY.includes("YOUR-");
+}
+
+async function init() {
+  bindInputs();
+  bindGate();
+  bindMembers();
+  bindChat();
+  if (!configured()) { render(); return; }
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  sb.auth.onAuthStateChange((event) => { if (event === "SIGNED_OUT") location.reload(); });
+  const { data } = await sb.auth.getSession();   // 예전에 입장했으면 저장된 로그인으로 바로 들어감
+  if (data.session) afterPassword(); else showStep("pw");
+}
+
+function showStep(step) {
+  $("#gate").classList.add("on");
+  $("#pwForm").hidden = step !== "pw";
+  $("#nickForm").hidden = step !== "nick";
+  (step === "pw" ? $("#gatePw") : $("#gateNick")).focus();
+}
+
+async function afterPassword() {
+  const saved = store.get(NICK_KEY);
+  if (!saved) return showStep("nick");
+  me = saved;
+  await registerMember(saved);
+  start();
+}
+
+function registerMember(nickname) {
+  return sb.from("members").upsert({ nickname, last_seen_at: new Date().toISOString() }, { onConflict: "nickname" });
+}
+
+function bindGate() {
+  $("#pwForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const pw = $("#gatePw"), btn = $("#pwBtn"), err = $("#pwErr");
+    btn.disabled = true; err.textContent = "";
+    const { error } = await sb.auth.signInWithPassword({ email: TEAM_EMAIL, password: pw.value });
+    btn.disabled = false;
+    if (error) {
+      err.textContent = /invalid/i.test(error.message) ? "비밀번호가 틀렸어요" : "입장하지 못했어요: " + error.message;
+      pw.select();
+      return;
+    }
+    afterPassword();
+  };
+
+  $("#nickForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const name = $("#gateNick").value.trim(), btn = $("#nickBtn"), err = $("#nickErr");
+    err.textContent = "";
+    if (!name) return;
+    btn.disabled = true;
+    const { data: exist } = await sb.from("members").select("id").eq("nickname", name).maybeSingle();
+    if (exist && !confirm(`‘${name}’은(는) 이미 누군가 쓰고 있는 닉네임이에요.\n본인이 맞으면 확인을 눌러 주세요.`)) { btn.disabled = false; return; }
+    const { error } = await registerMember(name);
+    btn.disabled = false;
+    if (error) { err.textContent = "저장하지 못했어요: " + error.message; return; }
+    me = name;
+    store.set(NICK_KEY, name);
+    start();
+  };
+}
+
+async function start() {
+  if (started) return;
+  started = true;
+  $("#gate").classList.remove("on");
+  $("#memBtn").hidden = false;
+  $("#chatFab").hidden = false;
+  await Promise.all([load(), loadMembers(), loadMessages()]);
+
+  sb.channel("moodboard-data")
+    .on("postgres_changes", { event: "*", schema: "public", table: "images" }, scheduleLoad)
+    .on("postgres_changes", { event: "*", schema: "public", table: "categories" }, scheduleLoad)
+    .on("postgres_changes", { event: "*", schema: "public", table: "members" }, scheduleMembers)
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (p) => addMessage(p.new))
+    .subscribe();
+
+  presence = sb.channel("moodboard-online", { config: { presence: { key: uuid() } } });
+  presence
+    .on("presence", { event: "sync" }, () => {
+      state.online = new Set(Object.values(presence.presenceState()).flat().map((p) => p.nickname));
+      renderMembers();
+    })
+    .subscribe((status) => { if (status === "SUBSCRIBED") presence.track({ nickname: me }); });
+
+  window.addEventListener("focus", () => { scheduleLoad(); loadMessages(); });
+}
+
+let loadTimer;
+function scheduleLoad() { clearTimeout(loadTimer); loadTimer = setTimeout(load, 300); }
+
+async function load() {
+  const [im, ca] = await Promise.all([
+    sb.from("images").select("*").order("created_at", { ascending: false }),
+    sb.from("categories").select("*").order("created_at", { ascending: true }),
+  ]);
+  const err = im.error || ca.error;
+  if (err) { toast("불러오지 못했어요: " + err.message, true); return; }
+  state.images = im.data;
+  state.cats = ca.data;
+  if (typeof state.view === "number" && !state.cats.some((c) => c.id === state.view)) state.view = "all";
+  render();
+}
+
+/* ---------- 멤버 ---------- */
+let memTimer;
+function scheduleMembers() { clearTimeout(memTimer); memTimer = setTimeout(loadMembers, 300); }
+
+async function loadMembers() {
+  const { data, error } = await sb.from("members").select("*").order("last_seen_at", { ascending: false });
+  if (error) { console.error(error); return; }
+  state.members = data;
+  renderMembers();
+}
+
+function renderMembers() {
+  const names = [...new Set([me, ...state.members.map((m) => m.nickname), ...state.online])].filter(Boolean);
+  const rank = (n) => (n === me ? 0 : state.online.has(n) ? 1 : 2);
+  names.sort((a, b) => rank(a) - rank(b));
+  $("#memCount").textContent = names.length;
+  $("#onCount").textContent = state.online.size;
+  $("#memList").replaceChildren(...names.map((n) => {
+    const li = document.createElement("li");
+    const on = state.online.has(n);
+    if (!on) li.className = "off";
+    const dot = document.createElement("span"); dot.className = "dot" + (on ? " on" : "");
+    dot.title = on ? "접속 중" : "접속 안 함";
+    const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = n;
+    li.append(dot, nm);
+    if (n === me) { const t = document.createElement("span"); t.className = "me"; t.textContent = "나"; li.append(t); }
+    return li;
+  }));
+}
+
+function bindMembers() {
+  const btn = $("#memBtn"), panel = $("#memPanel");
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    panel.hidden = !panel.hidden;
+    btn.setAttribute("aria-expanded", String(!panel.hidden));
+  };
+  document.addEventListener("click", (e) => {
+    if (!panel.hidden && !e.target.closest(".mem-wrap")) { panel.hidden = true; btn.setAttribute("aria-expanded", "false"); }
+  });
+  $("#renameMe").onclick = renameMe;
+}
+
+async function renameMe() {
+  const name = (prompt("새 닉네임 (20자까지)", me) || "").trim().slice(0, 20);
+  if (!name || name === me) return;
+  const { data, error } = await sb.from("members").update({ nickname: name }).eq("nickname", me).select();
+  if (error) return toast(error.code === "23505" ? "이미 있는 닉네임이에요" : "바꾸지 못했어요: " + error.message, true);
+  if (!data.length) await registerMember(name);
+  me = name;
+  store.set(NICK_KEY, name);
+  if (presence) presence.track({ nickname: me });
+  await loadMembers();
+  renderMessages(false);
+  toast(`닉네임을 ‘${name}’(으)로 바꿨어요`);
+}
+
+/* ---------- 보드 화면 ---------- */
+function catName(id) { const c = state.cats.find((c) => c.id === id); return c ? c.name : ""; }
+function targetCategory() { return typeof state.view === "number" ? state.view : null; }
+function filtered() {
+  const v = state.view;
+  if (v === "all") return state.images;
+  if (v === "none") return state.images.filter((i) => i.category_id == null);
+  return state.images.filter((i) => i.category_id === v);
+}
+
+function render() { renderCats(); renderHint(); renderGrid(); }
+
+function renderCats() {
+  const nav = $("#cats");
+  nav.replaceChildren();
+  if (!configured()) return;
+  const chip = (label, n, view) => {
+    const b = document.createElement("button");
+    b.className = "chip";
+    b.setAttribute("aria-pressed", String(state.view === view));
+    const t = document.createElement("span"); t.textContent = label;
+    const c = document.createElement("span"); c.className = "n"; c.textContent = n;
+    b.append(t, c);
+    b.onclick = () => { state.view = view; render(); };
+    return b;
+  };
+  nav.append(chip("전체", state.images.length, "all"));
+  nav.append(chip("미분류", state.images.filter((i) => i.category_id == null).length, "none"));
+  for (const c of state.cats) nav.append(chip(c.name, state.images.filter((i) => i.category_id === c.id).length, c.id));
+
+  const add = document.createElement("button");
+  add.className = "chip add";
+  add.textContent = "+ 새 카테고리";
+  add.onclick = () => startNewCategory(add);
+  nav.append(add);
+  $("#count").textContent = `${state.images.length}장`;
+}
+
+function renderHint() {
+  const h = $("#hint");
+  h.replaceChildren();
+  if (!configured()) return;
+  const target = targetCategory();
+  const p = document.createElement("span");
+  p.append("이미지를 끌어다 놓거나 복사 후 " + PASTE_KEY + "로 붙여넣으면 ");
+  const b = document.createElement("b"); b.textContent = target ? `‘${catName(target)}’` : "미분류";
+  p.append(b, target ? "에 들어가요." : "로 들어가요.");
+  h.append(p);
+  if (target) {
+    const rn = document.createElement("button"); rn.className = "link"; rn.textContent = "이름 바꾸기";
+    rn.onclick = () => renameCategory(target);
+    const del = document.createElement("button"); del.className = "link danger"; del.textContent = "카테고리 삭제";
+    del.onclick = () => deleteCategory(target);
+    h.append(rn, del);
+  }
+  $("#dropTo").textContent = target ? `‘${catName(target)}’ 카테고리에 추가돼요` : "미분류로 추가돼요";
+}
+
+function renderGrid() {
+  const list = filtered();
+  const alive = new Set(state.images.map((i) => i.id));
+  for (const id of [...cardEls.keys()]) if (!alive.has(id)) cardEls.delete(id);
+  $("#grid").replaceChildren(...list.map((img) => {
+    let el = cardEls.get(img.id);
+    if (!el) { el = makeCard(img); cardEls.set(img.id, el); }
+    updateCard(el, img);
+    return el;
+  }));
+
+  const empty = $("#empty");
+  empty.replaceChildren();
+  if (!configured()) {
+    empty.innerHTML = `<div class="empty"><strong>아직 저장소가 연결되지 않았어요</strong>
+      <code>index.html</code> 안의 <code>SUPABASE_URL</code>과 <code>SUPABASE_KEY</code>를 채운 뒤 다시 열어 주세요.</div>`;
+  } else if (started && !list.length) {
+    empty.innerHTML = `<div class="empty"><strong>아직 이미지가 없어요</strong>
+      파일이나 웹페이지의 이미지를 이 창에 끌어다 놓거나, 이미지를 복사한 뒤 ${PASTE_KEY}로 붙여넣으세요.</div>`;
+  }
+}
+
+function makeCard(img) {
+  const el = document.createElement("figure");
+  el.className = "card";
+  const im = document.createElement("img");
+  im.loading = "lazy"; im.alt = ""; im.draggable = false; im.referrerPolicy = "no-referrer";
+  im.src = img.url;
+  im.onclick = () => openLightbox(img.url);
+  im.onerror = () => el.classList.add("broken");
+  const tag = document.createElement("span"); tag.className = "tag";
+  const bar = document.createElement("div"); bar.className = "bar";
+  const sel = document.createElement("select"); sel.setAttribute("aria-label", "카테고리 바꾸기");
+  sel.onchange = () => setCategory(img.id, sel.value);
+  const del = document.createElement("button"); del.className = "del"; del.textContent = "삭제";
+  del.onclick = () => removeImage(img.id);
+  bar.append(sel, del);
+  el.append(im, tag, bar);
+  return el;
+}
+
+function updateCard(el, img) {
+  el.querySelector(".tag").textContent = state.view === "all" ? catName(img.category_id) : "";
+  const sel = el.querySelector("select");
+  sel.replaceChildren(new Option("미분류", ""), ...state.cats.map((c) => new Option(c.name, c.id)));
+  sel.value = img.category_id == null ? "" : String(img.category_id);
+}
+
+/* ---------- 카테고리 ---------- */
+function startNewCategory(btn) {
+  const input = document.createElement("input");
+  input.className = "chip-input"; input.placeholder = "카테고리 이름"; input.maxLength = 40;
+  btn.replaceWith(input);
+  input.focus();
+  let done = false;
+  const finish = async (save) => {
+    if (done) return; done = true;
+    const name = input.value.trim();
+    if (save && name) {
+      const { data, error } = await sb.from("categories").insert({ name }).select().single();
+      if (error) toast(error.code === "23505" ? "이미 있는 카테고리 이름이에요" : "추가하지 못했어요: " + error.message, true);
+      else { state.cats.push(data); state.view = data.id; }
+    }
+    render();
+  };
+  input.onkeydown = (e) => {
+    if (e.isComposing) return;
+    if (e.key === "Enter") finish(true);
+    if (e.key === "Escape") finish(false);
+  };
+  input.onblur = () => finish(true);
+}
+
+async function renameCategory(id) {
+  const name = prompt("새 이름", catName(id));
+  if (!name || !name.trim()) return;
+  const { error } = await sb.from("categories").update({ name: name.trim() }).eq("id", id);
+  if (error) return toast(error.code === "23505" ? "이미 있는 카테고리 이름이에요" : "바꾸지 못했어요: " + error.message, true);
+  await load();
+}
+
+async function deleteCategory(id) {
+  if (!confirm(`‘${catName(id)}’ 카테고리를 삭제할까요?\n안에 있던 이미지는 지워지지 않고 미분류로 옮겨져요.`)) return;
+  const { error } = await sb.from("categories").delete().eq("id", id);
+  if (error) return toast("삭제하지 못했어요: " + error.message, true);
+  state.view = "all";
+  await load();
+}
+
+/* ---------- 보드 이미지 ---------- */
+async function setCategory(imageId, value) {
+  const category_id = value === "" ? null : Number(value);
+  const img = state.images.find((i) => i.id === imageId);
+  if (img) img.category_id = category_id;
+  render();
+  const { error } = await sb.from("images").update({ category_id }).eq("id", imageId);
+  if (error) { toast("옮기지 못했어요: " + error.message, true); load(); }
+}
+
+async function removeImage(id) {
+  if (!confirm("이 이미지를 삭제할까요? 팀 모두의 보드에서 사라져요.")) return;
+  const img = state.images.find((i) => i.id === id);
+  if (img && img.path) await sb.storage.from(BUCKET).remove([img.path]);
+  const { error } = await sb.from("images").delete().eq("id", id);
+  if (error) return toast("삭제하지 못했어요: " + error.message, true);
+  state.images = state.images.filter((i) => i.id !== id);
+  render();
+}
+
+function uuid() {
+  return crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+function today() { return new Date().toISOString().slice(0, 10); }
+
+async function compress(blob) {
+  if (/gif|svg/.test(blob.type)) return blob;   // 움짤·벡터는 그대로
+  try {
+    const bmp = await createImageBitmap(blob);
+    const scale = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
+    if (scale === 1 && blob.size < 600 * 1024) return blob;
+    const c = document.createElement("canvas");
+    c.width = Math.round(bmp.width * scale);
+    c.height = Math.round(bmp.height * scale);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    const out = await new Promise((r) => c.toBlob(r, "image/webp", 0.85));
+    return out && out.size < blob.size ? out : blob;
+  } catch { return blob; }
+}
+
+async function uploadBlob(blob) {
+  const file = await compress(blob);
+  const ext = (file.type.split("/")[1] || "png").replace("jpeg", "jpg").replace("svg+xml", "svg");
+  const path = `${today()}/${uuid()}.${ext}`;
+  const up = await sb.storage.from(BUCKET).upload(path, file, { contentType: file.type, cacheControl: "31536000" });
+  if (up.error) throw up.error;
+  const { data } = sb.storage.from(BUCKET).getPublicUrl(path);
+  await insertRow({ url: data.publicUrl, path });
+}
+
+async function insertRow(row) {
+  const { error } = await sb.from("images").insert({ ...row, category_id: targetCategory() });
+  if (error) throw error;
+}
+
+function canLoad(url) {
+  return new Promise((resolve) => {
+    const i = new Image();
+    const t = setTimeout(() => resolve(false), 8000);
+    i.referrerPolicy = "no-referrer";
+    i.onload = () => { clearTimeout(t); resolve(true); };
+    i.onerror = () => { clearTimeout(t); resolve(false); };
+    i.src = url;
+  });
+}
+
+async function addFromUrl(url) {
+  let blob = null;
+  try {
+    const res = await fetch(url);
+    if (res.ok) { const b = await res.blob(); if (b.type.startsWith("image/")) blob = b; }
+  } catch { /* 다른 사이트가 막으면 아래에서 링크로 저장 */ }
+  if (blob) return uploadBlob(blob);
+  if (url.startsWith("data:") || !(await canLoad(url))) throw new Error("이미지 주소가 아니에요");
+  await insertRow({ url, path: null });   // 원본 사이트 링크로 저장
+}
+
+async function runTasks(tasks) {
+  if (!started) return;
+  let ok = 0, fail = 0;
+  for (const task of tasks) {
+    toast(`${tasks.length}장 중 ${ok + fail + 1}번째 올리는 중…`, false, true);
+    try { await task(); ok++; } catch (e) { console.error(e); fail++; }
+  }
+  await load();
+  toast(fail ? `${ok}장 추가, ${fail}장 실패` : `${ok}장 추가했어요`, fail > 0);
+}
+
+function addFiles(files) {
+  const imgs = [...files].filter((f) => f.type.startsWith("image/"));
+  if (!imgs.length) return false;
+  runTasks(imgs.map((f) => () => uploadBlob(f)));
+  return true;
+}
+
+function urlsFrom(dt) {
+  const html = dt.getData("text/html");
+  if (html) {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const srcs = [...doc.querySelectorAll("img")].map((i) => i.getAttribute("src") || "").filter((s) => /^(https?:|data:image)/.test(s));
+    if (srcs.length) return [...new Set(srcs)];
+  }
+  const text = dt.getData("text/uri-list") || dt.getData("text/plain") || "";
+  return text.split(/\r?\n/).map((s) => s.trim()).filter((s) => /^(https?:|data:image)/.test(s));
+}
+
+function addFromTransfer(dt) {
+  if (dt.files && addFiles(dt.files)) return true;
+  const urls = urlsFrom(dt);
+  if (!urls.length) return false;
+  runTasks(urls.map((u) => () => addFromUrl(u)));
+  return true;
+}
+
+/* ---------- 채팅 ---------- */
+async function loadMessages() {
+  const { data, error } = await sb.from("messages").select("*").order("id", { ascending: false }).limit(200);
+  if (error) { console.error(error); return; }
+  state.messages = data.reverse();
+  if (store.get(READ_KEY) === null) markRead();   // 처음 온 사람은 예전 메시지를 안 읽음으로 세지 않음
+  renderMessages(true);
+  updateBadge();
+}
+
+function addMessage(m) {
+  if (state.messages.some((x) => x.id === m.id)) return;
+  state.messages.push(m);
+  state.messages.sort((a, b) => a.id - b.id);
+  renderMessages(m.nickname === me);
+  updateBadge();
+}
+
+function sameDay(a, b) { return a.toDateString() === b.toDateString(); }
+const dayFmt = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "short" });
+const timeFmt = new Intl.DateTimeFormat("ko-KR", { hour: "numeric", minute: "2-digit" });
+
+function renderMessages(forceBottom) {
+  const list = $("#chatList");
+  const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
+  list.replaceChildren();
+  if (!state.messages.length) {
+    const p = document.createElement("p"); p.className = "chat-empty";
+    p.textContent = "아직 대화가 없어요. 첫 메시지를 보내 보세요.";
+    list.append(p);
+    return;
+  }
+  let prev = null;
+  for (const m of state.messages) {
+    const d = new Date(m.created_at);
+    const pd = prev && new Date(prev.created_at);
+    if (!prev || !sameDay(d, pd)) {
+      const s = document.createElement("div"); s.className = "day"; s.textContent = dayFmt.format(d);
+      list.append(s);
+    }
+    const grouped = prev && prev.nickname === m.nickname && sameDay(d, pd) && d - pd < 5 * 60 * 1000;
+    list.append(msgEl(m, grouped));
+    prev = m;
+  }
+  if (forceBottom || nearBottom) list.scrollTop = list.scrollHeight;
+}
+
+function msgEl(m, grouped) {
+  const mine = m.nickname === me;
+  const el = document.createElement("div");
+  el.className = "msg" + (mine ? " mine" : "") + (grouped ? " grouped" : "");
+  const time = timeFmt.format(new Date(m.created_at));
+  if (!grouped) {
+    const meta = document.createElement("div"); meta.className = "meta";
+    if (!mine) { const b = document.createElement("b"); b.textContent = m.nickname; meta.append(b); }
+    const t = document.createElement("time"); t.textContent = time; meta.append(t);
+    el.append(meta);
+  }
+  if (m.body) {
+    const bub = document.createElement("div"); bub.className = "bubble"; bub.title = time;
+    linkify(bub, m.body);
+    el.append(bub);
+  }
+  if (m.file_url) el.append(attachmentEl(m));
+  return el;
+}
+
+function linkify(parent, text) {
+  const re = /https?:\/\/[^\s]+/g;
+  let last = 0, match;
+  while ((match = re.exec(text))) {
+    const url = match[0].replace(/[),.!?'"」』>]+$/, "");
+    if (match.index > last) parent.append(text.slice(last, match.index));
+    const a = document.createElement("a");
+    a.href = url; a.textContent = url; a.target = "_blank"; a.rel = "noopener noreferrer";
+    parent.append(a);
+    last = match.index + url.length;
+    re.lastIndex = last;
+  }
+  if (last < text.length) parent.append(text.slice(last));
+}
+
+function fmtSize(n) {
+  if (!n && n !== 0) return "";
+  if (n < 1024) return n + " B";
+  if (n < 1024 * 1024) return Math.round(n / 1024) + " KB";
+  return (n / 1024 / 1024).toFixed(1) + " MB";
+}
+
+function attachmentEl(m) {
+  if ((m.file_type || "").startsWith("image/")) {
+    const a = document.createElement("a"); a.className = "att-img"; a.href = m.file_url;
+    const img = document.createElement("img"); img.src = m.file_url; img.alt = m.file_name || ""; img.loading = "lazy";
+    img.onload = () => { const l = $("#chatList"); if (l.scrollHeight - l.scrollTop - l.clientHeight < 300) l.scrollTop = l.scrollHeight; };
+    a.onclick = (e) => { e.preventDefault(); openLightbox(m.file_url); };
+    a.append(img);
+    return a;
+  }
+  const a = document.createElement("a"); a.className = "att-file";
+  a.href = m.file_url + "?download=" + encodeURIComponent(m.file_name || "file");
+  a.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>`;
+  const info = document.createElement("span");
+  const fn = document.createElement("span"); fn.className = "fn"; fn.textContent = m.file_name || "파일";
+  const fs = document.createElement("span"); fs.className = "fs"; fs.textContent = fmtSize(m.file_size);
+  a.title = "내려받기";
+  info.append(fn, fs);
+  a.append(info);
+  return a;
+}
+
+function updateBadge() {
+  if (chatOpen) { markRead(); return; }
+  const last = Number(store.get(READ_KEY) || 0);
+  const n = state.messages.filter((m) => m.id > last && m.nickname !== me).length;
+  const b = $("#chatBadge");
+  b.textContent = n > 99 ? "99+" : String(n);
+  b.hidden = !n;
+}
+
+function markRead() {
+  const last = state.messages[state.messages.length - 1];
+  store.set(READ_KEY, String(last ? last.id : 0));
+  $("#chatBadge").hidden = true;
+}
+
+function toggleChat(open) {
+  chatOpen = open;
+  $("#chat").hidden = !open;
+  $("#chatFab").setAttribute("aria-expanded", String(open));
+  $("#chatFab").setAttribute("aria-label", open ? "채팅 닫기" : "채팅 열기");
+  if (open) { markRead(); renderMessages(true); $("#chatInput").focus(); }
+}
+
+function addPending(files) {
+  for (const f of files) {
+    if (f.size > MAX_FILE) { toast(`${f.name}: 50MB 이하 파일만 보낼 수 있어요`, true); continue; }
+    pending.push(f);
+  }
+  renderPending();
+}
+
+function renderPending() {
+  const box = $("#chatPending");
+  box.replaceChildren(...pending.map((f, i) => {
+    const c = document.createElement("span"); c.className = "pchip";
+    const n = document.createElement("span"); n.className = "pn"; n.textContent = `${f.name || "붙여넣은 이미지"} (${fmtSize(f.size)})`;
+    const x = document.createElement("button"); x.textContent = "×"; x.setAttribute("aria-label", "첨부 빼기");
+    x.onclick = () => { pending.splice(i, 1); renderPending(); };
+    c.append(n, x);
+    return c;
+  }));
+  box.hidden = !pending.length;
+}
+
+function autoGrow() {
+  const ta = $("#chatInput");
+  ta.style.height = "38px";
+  ta.style.height = Math.min(ta.scrollHeight + 2, 120) + "px";
+}
+
+function insertText(text) {
+  const ta = $("#chatInput");
+  ta.value = ta.value ? ta.value.replace(/\s*$/, " ") + text : text;
+  autoGrow();
+  ta.focus();
+}
+
+async function uploadAttachment(file) {
+  const ext = file.name && file.name.includes(".") ? file.name.split(".").pop().toLowerCase() : "";
+  const safeExt = /^[a-z0-9]{1,8}$/.test(ext) ? ext : (file.type.split("/")[1] || "bin").replace(/[^a-z0-9]/g, "").slice(0, 8) || "bin";
+  const path = `chat/${today()}/${uuid()}.${safeExt}`;
+  const up = await sb.storage.from(BUCKET).upload(path, file, {
+    contentType: file.type || "application/octet-stream", cacheControl: "31536000",
+  });
+  if (up.error) throw up.error;
+  const { data } = sb.storage.from(BUCKET).getPublicUrl(path);
+  return {
+    file_url: data.publicUrl, file_path: path,
+    file_name: file.name || `image.${safeExt}`, file_type: file.type || "", file_size: file.size,
+  };
+}
+
+async function postMessage(fields) {
+  const { data, error } = await sb.from("messages").insert({ nickname: me, ...fields }).select().single();
+  if (error) throw error;
+  addMessage(data);
+}
+
+async function sendMessage() {
+  if (sending || !started) return;
+  const ta = $("#chatInput");
+  if (!ta.value.trim() && !pending.length) return;
+  sending = true;
+  $("#chatSend").disabled = true;
+  try {
+    if (!pending.length) {
+      await postMessage({ body: ta.value.trim() });
+      ta.value = "";
+    }
+    while (pending.length) {
+      toast(`파일 올리는 중… (${pending.length}개 남음)`, false, true);
+      const att = await uploadAttachment(pending[0]);
+      await postMessage({ body: ta.value.trim() || null, ...att });
+      ta.value = "";
+      pending.shift();
+      renderPending();
+    }
+    hideToast();
+  } catch (e) {
+    console.error(e);
+    toast("보내지 못했어요: " + (e.message || e), true);
+  }
+  autoGrow();
+  sending = false;
+  $("#chatSend").disabled = false;
+  ta.focus();
+}
+
+function bindChat() {
+  $("#chatFab").onclick = () => toggleChat(!chatOpen);
+  $("#chatClose").onclick = () => toggleChat(false);
+  const ta = $("#chatInput");
+  ta.addEventListener("keydown", (e) => {
+    // 한글 조합 중 Enter는 무시해야 마지막 글자가 두 번 전송되지 않음
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); sendMessage(); }
+  });
+  ta.addEventListener("input", autoGrow);
+  ta.addEventListener("paste", (e) => {
+    const files = [...((e.clipboardData && e.clipboardData.files) || [])];
+    if (files.length) { e.preventDefault(); addPending(files); }
+  });
+  $("#chatAttach").onclick = () => $("#chatFile").click();
+  $("#chatFile").onchange = (e) => { addPending([...e.target.files]); e.target.value = ""; };
+  $("#chatSend").onclick = sendMessage;
+}
+
+/* ---------- 입력: 끌어다 놓기 / 붙여넣기 / 버튼 ---------- */
+function bindInputs() {
+  const drop = $("#drop"), chat = $("#chat");
+  let depth = 0;
+  const isExternal = (e) => [...e.dataTransfer.types].some((t) => t === "Files" || t === "text/uri-list" || t === "text/html");
+  const overChat = (e) => chatOpen && e.target instanceof Element && !!e.target.closest("#chat");
+  const clear = () => { depth = 0; drop.classList.remove("on"); chat.classList.remove("dragover"); };
+
+  window.addEventListener("dragenter", (e) => { if (!started || !isExternal(e)) return; e.preventDefault(); depth++; });
+  window.addEventListener("dragover", (e) => {
+    if (!started || !isExternal(e)) return;
+    e.preventDefault();
+    const inChat = overChat(e);
+    drop.classList.toggle("on", !inChat);
+    chat.classList.toggle("dragover", inChat);
+  });
+  window.addEventListener("dragleave", () => { depth = Math.max(0, depth - 1); if (!depth) clear(); });
+  window.addEventListener("drop", (e) => {
+    e.preventDefault();
+    const inChat = overChat(e);
+    clear();
+    if (!started) return;
+    if (inChat) {
+      const files = [...e.dataTransfer.files];
+      if (files.length) addPending(files);
+      else { const urls = urlsFrom(e.dataTransfer); if (urls.length) insertText(urls.filter((u) => !u.startsWith("data:")).join("\n")); }
+      return;
+    }
+    if (!addFromTransfer(e.dataTransfer)) toast("이미지를 찾지 못했어요. 이미지 파일이나 이미지 자체를 끌어 주세요", true);
+  });
+
+  document.addEventListener("paste", (e) => {
+    if (!started) return;
+    if (e.target.closest("input, textarea, [contenteditable]")) return;
+    if (addFromTransfer(e.clipboardData)) e.preventDefault();
+  });
+
+  $("#pick").onclick = () => $("#file").click();
+  $("#file").onchange = (e) => { addFiles(e.target.files); e.target.value = ""; };
+
+  const lb = $("#lightbox");
+  lb.onclick = () => lb.classList.remove("on");
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (lb.classList.contains("on")) lb.classList.remove("on");
+    else if (chatOpen) toggleChat(false);
+  });
+}
+
+function openLightbox(url) {
+  const lb = $("#lightbox");
+  lb.querySelector("img").src = url;
+  lb.classList.add("on");
+}
+
+let toastTimer;
+function toast(msg, isErr = false, sticky = false) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.className = "toast on" + (isErr ? " err" : "");
+  clearTimeout(toastTimer);
+  if (!sticky) toastTimer = setTimeout(hideToast, isErr ? 5000 : 2500);
+}
+function hideToast() { $("#toast").classList.remove("on"); }
+
+init();
+</script>
+</body>
+</html>
